@@ -36,12 +36,12 @@ fn require_named_fields(item: &DataStruct) -> syn::Result<&syn::FieldsNamed> {
 
 fn generate_output(name: &Ident, input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let data_struct = require_data_struct(&input.data)?;
-    let named_fields = require_named_fields(&data_struct)?;
+    let named_fields = require_named_fields(data_struct)?;
 
     let methods = named_fields
         .named
         .iter()
-        .filter_map(|f| f.ident.as_ref().and_then(|ident| Some((ident, &f.ty))))
+        .filter_map(|f| f.ident.as_ref().map(|ident| (ident, &f.ty)))
         .map(|(ident, ty)| {
             let setter = format_ident!("set_{}", ident);
             let macro_attr = "#[instrument(skip_all)]";
@@ -170,8 +170,7 @@ fn generate_handle_events_output(
                 }
             }
         }
-    }
-    .into())
+    })
 }
 
 /// Generate delegation calls for each enum variant for each HandleEvents trait method

@@ -16,7 +16,7 @@ impl FromStr for IpAddrPort {
     type Err = ParseIntError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts = s.split(":").collect::<Vec<_>>();
+        let parts = s.split(':').collect::<Vec<_>>();
         Ok(IpAddrPort {
             ip: Ipv4Addr::from_str(parts[0]).expect("Failed to parse ip addr"),
             port: u16::from_str(parts[1]).expect("Failed to parse port"),

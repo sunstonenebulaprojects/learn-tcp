@@ -160,9 +160,8 @@ async fn send_tcp_packet(
 ) {
     info!("Sending {} packet", packet_type);
 
-    let mut result = Vec::<u8>::with_capacity(builder.size(payload.len()) + 4);
-    result.resize(result.capacity(), 0);
-    (&mut result[2..]).write(&0x800u16.to_be_bytes()).unwrap();
+    let mut result = vec![0; builder.size(payload.len()) + 4];    
+    let _ = (&mut result[2..]).write(&0x800u16.to_be_bytes()).unwrap();
     let mut offset = &mut result[4..];
     builder.write(&mut offset, payload).unwrap();    
     if let Err(e) = nic.write(&result).await {
