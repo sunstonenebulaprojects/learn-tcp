@@ -3,8 +3,9 @@ use crate::connection::{HandleEvents, TransitionState};
 use crate::errors::TrustResult;
 use crate::quad::Quad;
 use crate::states::{ClosedState, State};
-use crate::transmission_control_block::ReceiveSequenceVars;
-use crate::transmission_control_block::SendSequenceVars;
+use crate::transmission_control_block::{
+    ReceiveSequenceVars, RetransmissionQueue, SendSequenceVars,
+};
 use crate::AsyncTun;
 use tracing::{error, info, instrument};
 
@@ -16,6 +17,7 @@ pub struct LastAck {
     nic: Arc<dyn AsyncTun + Sync + Send>,
     recv: Arc<Mutex<ReceiveSequenceVars>>,
     send: Arc<Mutex<SendSequenceVars>>,
+    retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
 #[async_trait]
@@ -33,6 +35,7 @@ impl HandleEvents for LastAck {
             self.nic.clone(),
             self.recv.clone(),
             self.send.clone(),
+            self.retransmission_queue.clone(),
         )))))
     }
 
@@ -59,8 +62,14 @@ impl LastAck {
         nic: Arc<dyn AsyncTun + Sync + Send>,
         recv: Arc<Mutex<ReceiveSequenceVars>>,
         send: Arc<Mutex<SendSequenceVars>>,
+        retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Last ack state");
-        Self { nic, recv, send }
+        Self {
+            nic,
+            recv,
+            send,
+            retransmission_queue,
+        }
     }
 }

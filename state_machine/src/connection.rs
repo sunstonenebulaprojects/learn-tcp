@@ -2,8 +2,10 @@
 use crate::errors::TrustResult;
 use crate::quad::Quad;
 use crate::states::{ClosedState, State};
-use crate::transmission_control_block::ReceiveSequenceVars;
-use crate::transmission_control_block::SendSequenceVars;
+use crate::transmission_control_block::{
+    ReceiveSequenceVars, RetransmissionQueue, SendSequenceVars,
+};
+
 use crate::AsyncTun;
 
 use async_trait::async_trait;
@@ -43,6 +45,7 @@ impl Connection {
                 nic,
                 Arc::new(Mutex::new(ReceiveSequenceVars::default())),
                 Arc::new(Mutex::new(SendSequenceVars::default())),
+                Arc::new(Mutex::new(RetransmissionQueue::default())),
             )),
         }
     }

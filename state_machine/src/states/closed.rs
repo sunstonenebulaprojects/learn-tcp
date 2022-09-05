@@ -3,8 +3,9 @@ use super::syn_sent::SynSentState;
 use super::State;
 use crate::connection::{HandleEvents, TransitionState};
 use crate::quad::Quad;
-use crate::transmission_control_block::ReceiveSequenceVars;
-use crate::transmission_control_block::SendSequenceVars;
+use crate::transmission_control_block::{
+    ReceiveSequenceVars, RetransmissionQueue, SendSequenceVars,
+};
 use crate::{send, AsyncTun};
 use tracing::{info, instrument};
 
@@ -19,6 +20,7 @@ pub struct ClosedState {
     nic: Arc<dyn AsyncTun + Sync + Send>,
     recv: Arc<Mutex<ReceiveSequenceVars>>,
     send: Arc<Mutex<SendSequenceVars>>,
+    retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
 #[async_trait]
@@ -40,6 +42,7 @@ impl HandleEvents for ClosedState {
             self.nic.clone(),
             self.recv.clone(),
             self.send.clone(),
+            self.retransmission_queue.clone(),
         )))))
     }
 
@@ -60,6 +63,7 @@ impl HandleEvents for ClosedState {
             self.nic.clone(),
             self.recv.clone(),
             self.send.clone(),
+            self.retransmission_queue.clone(),
         )))))
     }
 
@@ -77,8 +81,14 @@ impl ClosedState {
         nic: Arc<dyn AsyncTun + Sync + Send>,
         recv: Arc<Mutex<ReceiveSequenceVars>>,
         send: Arc<Mutex<SendSequenceVars>>,
+        retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Closed state");
-        Self { nic, recv, send }
+        Self {
+            nic,
+            recv,
+            send,
+            retransmission_queue,
+        }
     }
 }

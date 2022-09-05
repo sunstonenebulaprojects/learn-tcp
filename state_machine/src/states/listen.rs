@@ -5,8 +5,9 @@ use crate::quad::Quad;
 use crate::send;
 use crate::states::syn_received::SynReceivedState;
 use crate::states::State;
-use crate::transmission_control_block::ReceiveSequenceVars;
-use crate::transmission_control_block::SendSequenceVars;
+use crate::transmission_control_block::{
+    ReceiveSequenceVars, RetransmissionQueue, SendSequenceVars,
+};
 use crate::{debug, AsyncTun};
 
 use async_trait::async_trait;
@@ -19,6 +20,7 @@ pub struct ListenState {
     nic: Arc<dyn AsyncTun + Sync + Send>,
     recv: Arc<Mutex<ReceiveSequenceVars>>,
     send: Arc<Mutex<SendSequenceVars>>,
+    retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
 /// Guided by RFC 9293 3.10.7.2. LISTEN STATE
@@ -60,7 +62,12 @@ impl HandleEvents for ListenState {
             .set_una(iss);
 
         Ok(Some(TransitionState(State::SynRcvd(
-            SynReceivedState::new(self.nic.clone(), self.recv.clone(), self.send.clone()),
+            SynReceivedState::new(
+                self.nic.clone(),
+                self.recv.clone(),
+                self.send.clone(),
+                self.retransmission_queue.clone(),
+            ),
         ))))
     }
 
@@ -87,8 +94,14 @@ impl ListenState {
         nic: Arc<dyn AsyncTun + Sync + Send>,
         recv: Arc<Mutex<ReceiveSequenceVars>>,
         send: Arc<Mutex<SendSequenceVars>>,
+        retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Listen state");
-        Self { nic, recv, send }
+        Self {
+            nic,
+            recv,
+            send,
+            retransmission_queue,
+        }
     }
 }

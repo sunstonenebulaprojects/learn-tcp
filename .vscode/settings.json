@@ -1,0 +1,6 @@
+{
+    "git.decorations.enabled": false,
+    "scm.diffDecorations": "all",
+    "explorer.decorations.colors": true,
+    "explorer.decorations.badges": true
+}

@@ -16,7 +16,7 @@ log = "0"
 crossbeam = "0"
 crossbeam-channel = "0"
 derived = { path = "../derived" }
-tokio = { version = "1.2", features = ["full", "tracing"] }
+tokio = { version = "1.2", features = ["full", "tracing", "rt"] }
 libc = "0"
 futures = { version = "0.3.0", features = ["async-await"] }
 async-trait = "0.1"

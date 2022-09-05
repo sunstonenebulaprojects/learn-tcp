@@ -3,8 +3,9 @@ use crate::connection::{HandleEvents, TransitionState};
 use crate::errors::TrustResult;
 use crate::quad::Quad;
 use crate::states::{ClosedState, State};
-use crate::transmission_control_block::ReceiveSequenceVars;
-use crate::transmission_control_block::SendSequenceVars;
+use crate::transmission_control_block::{
+    ReceiveSequenceVars, RetransmissionQueue, SendSequenceVars,
+};
 use crate::{send, AsyncTun};
 use tracing::{info, instrument};
 
@@ -17,6 +18,7 @@ pub struct FinWait1State {
     nic: Arc<dyn AsyncTun + Sync + Send>,
     recv: Arc<Mutex<ReceiveSequenceVars>>,
     send: Arc<Mutex<SendSequenceVars>>,
+    retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
 #[async_trait]
@@ -38,6 +40,7 @@ impl HandleEvents for FinWait1State {
                 self.nic.clone(),
                 self.recv.clone(),
                 self.send.clone(),
+                self.retransmission_queue.clone(),
             )))))
         } else {
             Ok(None)
@@ -67,8 +70,14 @@ impl FinWait1State {
         nic: Arc<dyn AsyncTun + Sync + Send>,
         recv: Arc<Mutex<ReceiveSequenceVars>>,
         send: Arc<Mutex<SendSequenceVars>>,
+        retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Fin-wait1 state");
-        Self { nic, recv, send }
+        Self {
+            nic,
+            recv,
+            send,
+            retransmission_queue,
+        }
     }
 }

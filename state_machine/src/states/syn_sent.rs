@@ -1,8 +1,9 @@
 use crate::connection::{HandleEvents, TransitionState};
 use crate::errors::TrustResult;
 use crate::quad::Quad;
-use crate::transmission_control_block::ReceiveSequenceVars;
-use crate::transmission_control_block::SendSequenceVars;
+use crate::transmission_control_block::{
+    ReceiveSequenceVars, RetransmissionQueue, SendSequenceVars,
+};
 use crate::{send, AsyncTun};
 use tracing::{error, info, instrument};
 
@@ -18,6 +19,7 @@ pub struct SynSentState {
     nic: Arc<dyn AsyncTun + Sync + Send>,
     recv: Arc<Mutex<ReceiveSequenceVars>>,
     send: Arc<Mutex<SendSequenceVars>>,
+    retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
 ///  From RFC 9293
@@ -69,6 +71,7 @@ impl HandleEvents for SynSentState {
             self.nic.clone(),
             self.recv.clone(),
             self.send.clone(),
+            self.retransmission_queue.clone(),
         )))))
     }
 
@@ -95,8 +98,14 @@ impl SynSentState {
         nic: Arc<dyn AsyncTun + Sync + Send>,
         recv: Arc<Mutex<ReceiveSequenceVars>>,
         send: Arc<Mutex<SendSequenceVars>>,
+        retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Syn sent state");
-        Self { nic, recv, send }
+        Self {
+            nic,
+            recv,
+            send,
+            retransmission_queue,
+        }
     }
 }
