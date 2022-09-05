@@ -10,14 +10,13 @@ use crate::{send, AsyncTun};
 use tracing::{info, instrument};
 
 use async_trait::async_trait;
-use std::borrow::BorrowMut;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct FinWait1State {
     nic: Arc<dyn AsyncTun + Sync + Send>,
-    recv: Arc<Mutex<ReceiveSequenceVars>>,
-    send: Arc<Mutex<SendSequenceVars>>,
+    recv: Option<ReceiveSequenceVars>,
+    send: Option<SendSequenceVars>,
     retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
@@ -29,17 +28,16 @@ impl HandleEvents for FinWait1State {
         tcph: etherparse::TcpHeader,
         _data: Vec<u8>,
     ) -> TrustResult<Option<TransitionState>> {
-        let mut recv_guard = self.recv.as_ref().lock().await;
-        let recv = recv_guard.borrow_mut();
-        let send = self.send.as_ref().lock().await;
+        let recv = self.recv.as_mut().unwrap();
+        let send = self.send.as_ref().unwrap();
 
         if tcph.ack && tcph.fin {
             recv.set_next(tcph.sequence_number.wrapping_add(1));
             send::send_ack(self.nic.clone(), iph, tcph, send.next(), recv.next()).await;
             Ok(Some(TransitionState(State::Closed(ClosedState::new(
                 self.nic.clone(),
-                self.recv.clone(),
-                self.send.clone(),
+                self.recv.take(),
+                self.send.take(),
                 self.retransmission_queue.clone(),
             )))))
         } else {
@@ -68,11 +66,13 @@ impl FinWait1State {
     #[instrument(skip_all)]
     pub fn new(
         nic: Arc<dyn AsyncTun + Sync + Send>,
-        recv: Arc<Mutex<ReceiveSequenceVars>>,
-        send: Arc<Mutex<SendSequenceVars>>,
+        recv: Option<ReceiveSequenceVars>,
+        send: Option<SendSequenceVars>,
         retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Fin-wait1 state");
+        assert_ne!(send, None);
+        assert_ne!(recv, None);
         Self {
             nic,
             recv,

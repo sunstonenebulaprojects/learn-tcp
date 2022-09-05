@@ -20,8 +20,8 @@ use super::ack_received::AckReceivedState;
 
 pub struct EstablishedState {
     nic: Arc<dyn AsyncTun + Sync + Send>,
-    recv: Arc<Mutex<ReceiveSequenceVars>>,
-    send: Arc<Mutex<SendSequenceVars>>,
+    recv: Option<ReceiveSequenceVars>,
+    send: Option<SendSequenceVars>,
     retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
@@ -37,9 +37,8 @@ impl HandleEvents for EstablishedState {
             return self.handle_fin(iph, tcph).await;
         }
 
-        let mut recv_guard = self.recv.as_ref().lock().await;
-        let recv = recv_guard.borrow_mut();
-        let send = self.send.as_ref().lock().await;
+        let recv = self.recv.as_mut().unwrap();
+        let send = self.send.as_ref().unwrap();
 
         if !recv.incoming_segment_valid(data.len() as u32, tcph.sequence_number) {
             error!(
@@ -75,9 +74,8 @@ impl HandleEvents for EstablishedState {
     async fn close(&mut self, quad: Quad) -> TrustResult<Option<TransitionState>> {
         info!("CLOSE call rceived");
 
-        let recv = self.recv.as_ref().lock().await;
-        let mut send_guard = self.send.as_ref().lock().await;
-        let send = send_guard.borrow_mut();
+        let recv = self.recv.as_ref().unwrap();
+        let send = self.send.as_mut().unwrap();
 
         let ack = recv.next();
 
@@ -98,8 +96,8 @@ impl HandleEvents for EstablishedState {
 
         Ok(Some(TransitionState(State::FinWait(FinWait1State::new(
             self.nic.clone(),
-            self.recv.clone(),
-            self.send.clone(),
+            self.recv.take(),
+            self.send.take(),
             self.retransmission_queue.clone(),
         )))))
     }
@@ -107,29 +105,20 @@ impl HandleEvents for EstablishedState {
     async fn send(&mut self, quad: Quad, data: Vec<u8>) -> TrustResult<Option<TransitionState>> {
         info!("SEND call received");
 
-        let (send_una, send_window_size) = {
-            let mut send_guard = self.send.as_ref().lock().await;
-            let send = send_guard.borrow_mut();
+        let send = self.send.as_mut().unwrap();
 
-            let send_next = send.next();
-            send.set_una(send_next);
-            let send_una = send.una();
-            send.set_next(send_una.wrapping_add(data.len() as u32));
-
-            (send_next, send.window_size())
-        };
-        let ack_number = {
-            let recv = self.recv.as_ref().lock().await;
-            recv.next()
-        };
+        let send_next = send.next();
+        send.set_una(send_next);
+        let send_una = send.una();
+        send.set_next(send_una.wrapping_add(data.len() as u32));
 
         send::send_data(
             self.nic.clone(),
             quad.dst,
             quad.src,
             send_una,
-            ack_number,
-            send_window_size,
+            self.recv.as_ref().unwrap().next(),
+            send.window_size(),
             &data,
         )
         .await;
@@ -142,8 +131,8 @@ impl HandleEvents for EstablishedState {
         Ok(Some(TransitionState(State::AckRcvd(
             AckReceivedState::new(
                 self.nic.clone(),
-                self.recv.clone(),
-                self.send.clone(),
+                self.recv.take(),
+                self.send.take(),
                 self.retransmission_queue.clone(),
             )
             .await,
@@ -155,11 +144,13 @@ impl EstablishedState {
     #[instrument(skip_all)]
     pub fn new(
         nic: Arc<dyn AsyncTun + Sync + Send>,
-        recv: Arc<Mutex<ReceiveSequenceVars>>,
-        send: Arc<Mutex<SendSequenceVars>>,
+        recv: Option<ReceiveSequenceVars>,
+        send: Option<SendSequenceVars>,
         retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Established state");
+        assert_ne!(send, None);
+        assert_ne!(recv, None);
         Self {
             nic,
             recv,
@@ -168,13 +159,12 @@ impl EstablishedState {
         }
     }
     async fn handle_fin(
-        &self,
+        &mut self,
         iph: etherparse::Ipv4Header,
         tcph: etherparse::TcpHeader,
     ) -> TrustResult<Option<TransitionState>> {
-        let mut recv_guard = self.recv.as_ref().lock().await;
-        let recv = recv_guard.borrow_mut();
-        let send = self.send.as_ref().lock().await;
+        let recv = self.recv.as_mut().unwrap();
+        let send = self.send.as_ref().unwrap();
 
         let send_next = send.next();
 
@@ -190,8 +180,8 @@ impl EstablishedState {
         send::send_fin_ack(self.nic.clone(), &iph, &tcph, send_next, recv.next()).await;
         Ok(Some(TransitionState(State::LastAck(LastAck::new(
             self.nic.clone(),
-            self.recv.clone(),
-            self.send.clone(),
+            self.recv.take(),
+            self.send.take(),
             self.retransmission_queue.clone(),
         )))))
     }

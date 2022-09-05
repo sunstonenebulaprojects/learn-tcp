@@ -21,8 +21,8 @@ use super::State;
 
 pub struct AckReceivedState {
     nic: Arc<dyn AsyncTun + Sync + Send>,
-    recv: Arc<Mutex<ReceiveSequenceVars>>,
-    send: Arc<Mutex<SendSequenceVars>>,
+    recv: Option<ReceiveSequenceVars>,
+    send: Option<SendSequenceVars>,
     rto_sample: Instant,
     retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     retransmission_timer: Instrumented<JoinHandle<()>>,
@@ -41,29 +41,26 @@ impl HandleEvents for AckReceivedState {
             return Ok(None);
         }
 
-        {
-            let mut send_guard = self.send.as_ref().lock().await;
-            let send = send_guard.borrow_mut();
+        let send = self.send.as_mut().unwrap();
 
-            // check send.una < ACK num <= send.next
-            if !send.acknowledgment_number_valid(tcph.acknowledgment_number) {
-                error!(
-                    "Check [send.una < ACK num <= send.next] failed, una: {}, ack: {}, next: {}",
-                    send.una(),
-                    tcph.acknowledgment_number,
-                    send.next()
-                );
-                return Ok(None);
-            }
-            send.set_una(tcph.acknowledgment_number);
+        // check send.una < ACK num <= send.next
+        if !send.acknowledgment_number_valid(tcph.acknowledgment_number) {
+            error!(
+                "Check [send.una < ACK num <= send.next] failed, una: {}, ack: {}, next: {}",
+                send.una(),
+                tcph.acknowledgment_number,
+                send.next()
+            );
+            return Ok(None);
         }
+        send.set_una(tcph.acknowledgment_number);
 
         self.process_acked_segment(tcph.acknowledgment_number).await;
 
         Ok(Some(TransitionState(State::Estab(EstablishedState::new(
             self.nic.clone(),
-            self.recv.clone(),
-            self.send.clone(),
+            self.recv.take(),
+            self.send.take(),
             self.retransmission_queue.clone(),
         )))))
     }
@@ -89,18 +86,22 @@ impl AckReceivedState {
     #[instrument(skip_all)]
     pub async fn new(
         nic: Arc<dyn AsyncTun + Sync + Send>,
-        recv: Arc<Mutex<ReceiveSequenceVars>>,
-        send: Arc<Mutex<SendSequenceVars>>,
+        recv: Option<ReceiveSequenceVars>,
+        send: Option<SendSequenceVars>,
         retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Ack received state");
-        let rto = { send.as_ref().lock().await.rto() };
+        assert_ne!(send, None);
+        assert_ne!(recv, None);
+        let send = send.unwrap();
+        let recv = recv.unwrap();
+
+        let rto = send.rto();
         let rqueue = retransmission_queue.clone();
         let nic_cloned = nic.clone();
-        let (ack, window_size) = {
-            let recv = recv.as_ref().lock().await;
-            (recv.next(), recv.window_size())
-        };
+        let ack = recv.next();
+        let window_size = recv.window_size();
+
         let handle = tokio::task::Builder::new()
             .name("retransmit_segment")
             .spawn(async move {
@@ -130,8 +131,8 @@ impl AckReceivedState {
             .instrument(info_span!("Retransmission"));
         Self {
             nic,
-            recv,
-            send,
+            recv: Some(recv),
+            send: Some(send),
             rto_sample: Instant::now(),
             retransmission_queue,
             retransmission_timer: handle,
@@ -139,9 +140,8 @@ impl AckReceivedState {
     }
 
     #[instrument(skip_all)]
-    async fn process_acked_segment(&self, acknowledgment_number: u32) {
-        let mut send_guard = self.send.as_ref().lock().await;
-        let send = send_guard.borrow_mut();
+    async fn process_acked_segment(&mut self, acknowledgment_number: u32) {
+        let send = self.send.as_mut().unwrap();
         info!("Locking queue");
         let mut retransmission_queue_guard = self.retransmission_queue.as_ref().lock().await;
         let retransmission_queue = retransmission_queue_guard.borrow_mut();
@@ -171,10 +171,6 @@ impl AckReceivedState {
             }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
-        info!(
-            aborted = self.retransmission_timer.inner().is_finished(),
-            "Retransmission timer aborted"
-        );
     }
 }
 

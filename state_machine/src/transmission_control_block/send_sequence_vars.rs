@@ -6,7 +6,7 @@ use tracing::{info, instrument};
 
 const ONE_SECOND_IN_MICROSECONDS: f64 = 1_000_000.0;
 
-#[derive(Debug, Default, Accessors)]
+#[derive(Debug, Default, Accessors, PartialEq)]
 pub struct SendSequenceVars {
     una: u32,
     next: u32,

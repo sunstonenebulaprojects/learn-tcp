@@ -43,8 +43,8 @@ impl Connection {
         Connection {
             state: State::Closed(ClosedState::new(
                 nic,
-                Arc::new(Mutex::new(ReceiveSequenceVars::default())),
-                Arc::new(Mutex::new(SendSequenceVars::default())),
+                Some(ReceiveSequenceVars::default()),
+                Some(SendSequenceVars::default()),
                 Arc::new(Mutex::new(RetransmissionQueue::default())),
             )),
         }

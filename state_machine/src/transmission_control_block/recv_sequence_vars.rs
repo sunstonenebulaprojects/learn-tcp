@@ -3,7 +3,7 @@ use derived::Accessors;
 use std::cmp::Ordering;
 use tracing::{info, instrument};
 
-#[derive(Debug, Default, Accessors)]
+#[derive(Debug, Default, Accessors, PartialEq, Eq)]
 pub struct ReceiveSequenceVars {
     next: u32,
     window_size: u16,

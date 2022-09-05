@@ -18,8 +18,8 @@ use async_trait::async_trait;
 
 pub struct ClosedState {
     nic: Arc<dyn AsyncTun + Sync + Send>,
-    recv: Arc<Mutex<ReceiveSequenceVars>>,
-    send: Arc<Mutex<SendSequenceVars>>,
+    recv: Option<ReceiveSequenceVars>,
+    send: Option<SendSequenceVars>,
     retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
@@ -36,33 +36,33 @@ impl HandleEvents for ClosedState {
 
     #[instrument(skip(self))]
     async fn passive_open(&mut self) -> TrustResult<Option<TransitionState>> {
-        self.send.as_ref().lock().await.init();
+        self.send.as_mut().unwrap().init();
 
         Ok(Some(TransitionState(State::Listen(ListenState::new(
             self.nic.clone(),
-            self.recv.clone(),
-            self.send.clone(),
+            self.recv.take(),
+            self.send.take(),
             self.retransmission_queue.clone(),
         )))))
     }
 
     #[instrument(skip_all)]
     async fn open(&mut self, quad: Quad) -> TrustResult<Option<TransitionState>> {
-        self.send.as_ref().lock().await.init();
+        self.send.as_mut().unwrap().init();
 
         send::send_syn(
             self.nic.clone(),
             quad.dst,
             quad.src,
-            self.send.as_ref().lock().await.iss(),
+            self.send.as_ref().unwrap().iss(),
             1000,
         )
         .await;
 
         Ok(Some(TransitionState(State::SynSent(SynSentState::new(
             self.nic.clone(),
-            self.recv.clone(),
-            self.send.clone(),
+            self.recv.take(),
+            self.send.take(),
             self.retransmission_queue.clone(),
         )))))
     }
@@ -79,11 +79,13 @@ impl ClosedState {
     #[instrument(skip_all)]
     pub fn new(
         nic: Arc<dyn AsyncTun + Sync + Send>,
-        recv: Arc<Mutex<ReceiveSequenceVars>>,
-        send: Arc<Mutex<SendSequenceVars>>,
+        recv: Option<ReceiveSequenceVars>,
+        send: Option<SendSequenceVars>,
         retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Closed state");
+        assert_ne!(send, None);
+        assert_ne!(recv, None);
         Self {
             nic,
             recv,

@@ -11,15 +11,14 @@ use crate::transmission_control_block::{
 use crate::{debug, AsyncTun};
 
 use async_trait::async_trait;
-use std::borrow::BorrowMut;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{error, info, instrument};
 
 pub struct ListenState {
     nic: Arc<dyn AsyncTun + Sync + Send>,
-    recv: Arc<Mutex<ReceiveSequenceVars>>,
-    send: Arc<Mutex<SendSequenceVars>>,
+    recv: Option<ReceiveSequenceVars>,
+    send: Option<SendSequenceVars>,
     retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
@@ -45,10 +44,8 @@ impl HandleEvents for ListenState {
             return Ok(None);
         }
 
-        let mut recv_guard = self.recv.as_ref().lock().await;
-        let recv = recv_guard.borrow_mut();
-        let mut send_guard = self.send.as_ref().lock().await;
-        let send = send_guard.borrow_mut();
+        let recv = self.recv.as_mut().unwrap();
+        let send = self.send.as_mut().unwrap();
 
         recv.set_window_size(tcph.window_size)
             .set_irs(tcph.sequence_number)
@@ -64,8 +61,8 @@ impl HandleEvents for ListenState {
         Ok(Some(TransitionState(State::SynRcvd(
             SynReceivedState::new(
                 self.nic.clone(),
-                self.recv.clone(),
-                self.send.clone(),
+                self.recv.take(),
+                self.send.take(),
                 self.retransmission_queue.clone(),
             ),
         ))))
@@ -92,11 +89,13 @@ impl ListenState {
     #[instrument(skip_all)]
     pub fn new(
         nic: Arc<dyn AsyncTun + Sync + Send>,
-        recv: Arc<Mutex<ReceiveSequenceVars>>,
-        send: Arc<Mutex<SendSequenceVars>>,
+        recv: Option<ReceiveSequenceVars>,
+        send: Option<SendSequenceVars>,
         retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Listen state");
+        assert_ne!(send, None);
+        assert_ne!(recv, None);
         Self {
             nic,
             recv,

@@ -15,8 +15,8 @@ use tokio::sync::Mutex;
 
 pub struct LastAck {
     nic: Arc<dyn AsyncTun + Sync + Send>,
-    recv: Arc<Mutex<ReceiveSequenceVars>>,
-    send: Arc<Mutex<SendSequenceVars>>,
+    recv: Option<ReceiveSequenceVars>,
+    send: Option<SendSequenceVars>,
     retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
 }
 
@@ -33,8 +33,8 @@ impl HandleEvents for LastAck {
         }
         Ok(Some(TransitionState(State::Closed(ClosedState::new(
             self.nic.clone(),
-            self.recv.clone(),
-            self.send.clone(),
+            self.recv.take(),
+            self.send.take(),
             self.retransmission_queue.clone(),
         )))))
     }
@@ -60,11 +60,13 @@ impl LastAck {
     #[instrument(skip_all)]
     pub fn new(
         nic: Arc<dyn AsyncTun + Sync + Send>,
-        recv: Arc<Mutex<ReceiveSequenceVars>>,
-        send: Arc<Mutex<SendSequenceVars>>,
+        recv: Option<ReceiveSequenceVars>,
+        send: Option<SendSequenceVars>,
         retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     ) -> Self {
         info!("Transitioned to Last ack state");
+        assert_ne!(send, None);
+        assert_ne!(recv, None);
         Self {
             nic,
             recv,
