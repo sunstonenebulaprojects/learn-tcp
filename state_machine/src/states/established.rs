@@ -28,7 +28,7 @@ pub struct EstablishedState {
 #[async_trait]
 impl HandleEvents for EstablishedState {
     async fn on_segment(
-        &self,
+        &mut self,
         iph: etherparse::Ipv4Header,
         tcph: etherparse::TcpHeader,
         data: Vec<u8>,
@@ -64,15 +64,15 @@ impl HandleEvents for EstablishedState {
         Ok(None)
     }
 
-    async fn passive_open(&self) -> TrustResult<Option<TransitionState>> {
+    async fn passive_open(&mut self) -> TrustResult<Option<TransitionState>> {
         unreachable!()
     }
 
-    async fn open(&self, _quad: Quad) -> TrustResult<Option<TransitionState>> {
+    async fn open(&mut self, _quad: Quad) -> TrustResult<Option<TransitionState>> {
         unreachable!()
     }
 
-    async fn close(&self, quad: Quad) -> TrustResult<Option<TransitionState>> {
+    async fn close(&mut self, quad: Quad) -> TrustResult<Option<TransitionState>> {
         info!("CLOSE call rceived");
 
         let recv = self.recv.as_ref().lock().await;
@@ -104,7 +104,7 @@ impl HandleEvents for EstablishedState {
         )))))
     }
 
-    async fn send(&self, quad: Quad, data: Vec<u8>) -> TrustResult<Option<TransitionState>> {
+    async fn send(&mut self, quad: Quad, data: Vec<u8>) -> TrustResult<Option<TransitionState>> {
         info!("SEND call received");
 
         let (send_una, send_window_size) = {

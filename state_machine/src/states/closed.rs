@@ -26,7 +26,7 @@ pub struct ClosedState {
 #[async_trait]
 impl HandleEvents for ClosedState {
     async fn on_segment(
-        &self,
+        &mut self,
         _iph: etherparse::Ipv4Header,
         _tcph: etherparse::TcpHeader,
         _data: Vec<u8>,
@@ -35,7 +35,7 @@ impl HandleEvents for ClosedState {
     }
 
     #[instrument(skip(self))]
-    async fn passive_open(&self) -> TrustResult<Option<TransitionState>> {
+    async fn passive_open(&mut self) -> TrustResult<Option<TransitionState>> {
         self.send.as_ref().lock().await.init();
 
         Ok(Some(TransitionState(State::Listen(ListenState::new(
@@ -47,7 +47,7 @@ impl HandleEvents for ClosedState {
     }
 
     #[instrument(skip_all)]
-    async fn open(&self, quad: Quad) -> TrustResult<Option<TransitionState>> {
+    async fn open(&mut self, quad: Quad) -> TrustResult<Option<TransitionState>> {
         self.send.as_ref().lock().await.init();
 
         send::send_syn(
@@ -67,10 +67,10 @@ impl HandleEvents for ClosedState {
         )))))
     }
 
-    async fn close(&self, _quad: Quad) -> TrustResult<Option<TransitionState>> {
+    async fn close(&mut self, _quad: Quad) -> TrustResult<Option<TransitionState>> {
         unreachable!()
     }
-    async fn send(&self, _quad: Quad, _data: Vec<u8>) -> TrustResult<Option<TransitionState>> {
+    async fn send(&mut self, _quad: Quad, _data: Vec<u8>) -> TrustResult<Option<TransitionState>> {
         unreachable!()
     }
 }

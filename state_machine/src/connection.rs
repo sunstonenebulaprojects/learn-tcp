@@ -17,15 +17,15 @@ pub struct TransitionState(pub State);
 #[async_trait]
 pub trait HandleEvents {
     async fn on_segment(
-        &self,
+        &mut self,
         iph: etherparse::Ipv4Header,
         tcph: etherparse::TcpHeader,
         data: Vec<u8>,
     ) -> TrustResult<Option<TransitionState>>;
-    async fn passive_open(&self) -> TrustResult<Option<TransitionState>>;
-    async fn open(&self, quad: Quad) -> TrustResult<Option<TransitionState>>;
-    async fn close(&self, quad: Quad) -> TrustResult<Option<TransitionState>>;
-    async fn send(&self, quad: Quad, data: Vec<u8>) -> TrustResult<Option<TransitionState>>;
+    async fn passive_open(&mut self) -> TrustResult<Option<TransitionState>>;
+    async fn open(&mut self, quad: Quad) -> TrustResult<Option<TransitionState>>;
+    async fn close(&mut self, quad: Quad) -> TrustResult<Option<TransitionState>>;
+    async fn send(&mut self, quad: Quad, data: Vec<u8>) -> TrustResult<Option<TransitionState>>;
 }
 
 pub enum ConnectionResult {

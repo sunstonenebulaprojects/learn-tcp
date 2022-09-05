@@ -132,7 +132,7 @@ fn generate_handle_events_output(
         #x
         impl HandleEvents for #name {
             async fn on_segment(
-                &self,
+                &mut self,
                 iph: etherparse::Ipv4Header,
                 tcph: etherparse::TcpHeader,
                 data: Vec<u8>
@@ -142,26 +142,26 @@ fn generate_handle_events_output(
                 }
             }
 
-            async fn passive_open(&self) -> TrustResult<Option<TransitionState>> {
+            async fn passive_open(&mut self) -> TrustResult<Option<TransitionState>> {
                 match self {
                     #(#passive_open),*
                 }
             }
 
-            async fn open(&self, quad: Quad) -> TrustResult<Option<TransitionState>> {
+            async fn open(&mut self, quad: Quad) -> TrustResult<Option<TransitionState>> {
                 match self {
                     #(#open),*
                 }
             }
 
-            async fn close(&self, quad: Quad) -> TrustResult<Option<TransitionState>> {
+            async fn close(&mut self, quad: Quad) -> TrustResult<Option<TransitionState>> {
                 match self {
                     #(#close),*
                 }
             }
 
             async fn send(
-                &self,
+                &mut self,
                 quad: Quad,
                 data: Vec<u8>
             ) -> TrustResult<Option<TransitionState>> {
@@ -176,7 +176,7 @@ fn generate_handle_events_output(
 /// Generate delegation calls for each enum variant for each HandleEvents trait method
 /// For example:
 /// async fn send(
-///     &self,
+///     &mut self,
 ///     quad: Quad,
 ///     data: Vec<u8>
 /// ) -> TrustResult<Option<TransitionState>> {

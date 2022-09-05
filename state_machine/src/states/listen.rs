@@ -33,7 +33,7 @@ pub struct ListenState {
 impl HandleEvents for ListenState {
     #[instrument(skip_all)]
     async fn on_segment(
-        &self,
+        &mut self,
         iph: etherparse::Ipv4Header,
         tcph: etherparse::TcpHeader,
         data: Vec<u8>,
@@ -71,19 +71,19 @@ impl HandleEvents for ListenState {
         ))))
     }
 
-    async fn passive_open(&self) -> TrustResult<Option<TransitionState>> {
+    async fn passive_open(&mut self) -> TrustResult<Option<TransitionState>> {
         unreachable!()
     }
 
-    async fn open(&self, _quad: Quad) -> TrustResult<Option<TransitionState>> {
+    async fn open(&mut self, _quad: Quad) -> TrustResult<Option<TransitionState>> {
         unreachable!()
     }
 
-    async fn close(&self, _quad: Quad) -> TrustResult<Option<TransitionState>> {
+    async fn close(&mut self, _quad: Quad) -> TrustResult<Option<TransitionState>> {
         unreachable!()
     }
 
-    async fn send(&self, _quad: Quad, _data: Vec<u8>) -> TrustResult<Option<TransitionState>> {
+    async fn send(&mut self, _quad: Quad, _data: Vec<u8>) -> TrustResult<Option<TransitionState>> {
         unreachable!()
     }
 }
