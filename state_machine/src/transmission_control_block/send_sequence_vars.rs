@@ -51,8 +51,8 @@ impl SendSequenceVars {
     pub fn update_rto(&mut self, rtt: f64) {
         // first time update
         const K: f64 = 4.0;
-        const ALPHA: f64 = 1f64 / 8f64;
-        const BETA: f64 = 1f64 / 4f64;
+        const ALPHA: f64 = 1.0 / 8.0;
+        const BETA: f64 = 1.0 / 4.0;
         if self.rto == ONE_SECOND_IN_MICROSECONDS {
             self.srtt = rtt;
             self.rttvar = rtt / 2.0;

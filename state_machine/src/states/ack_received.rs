@@ -6,6 +6,7 @@ use crate::transmission_control_block::{
     ReceiveSequenceVars, RetransmissionQueue, SendSequenceVars,
 };
 use crate::AsyncTun;
+use metrics::{register_gauge, Gauge};
 use tracing::{error, info, info_span, instrument};
 use tracing_futures::{Instrument, Instrumented};
 
@@ -26,6 +27,8 @@ pub struct AckReceivedState {
     rto_sample: Instant,
     retransmission_queue: Arc<Mutex<RetransmissionQueue>>,
     retransmission_timer: Instrumented<JoinHandle<()>>,
+    gauge: Gauge,
+    rtt: Gauge,
 }
 
 #[async_trait]
@@ -102,6 +105,9 @@ impl AckReceivedState {
         let ack = recv.next();
         let window_size = recv.window_size();
 
+        let gauge = register_gauge!("retransmission_timeout");
+        let rtt = register_gauge!("round_trip_time");
+        gauge.set(rto);
         let handle = tokio::task::Builder::new()
             .name("retransmit_segment")
             .spawn(async move {
@@ -136,13 +142,14 @@ impl AckReceivedState {
             rto_sample: Instant::now(),
             retransmission_queue,
             retransmission_timer: handle,
+            gauge,
+            rtt,
         }
     }
 
     #[instrument(skip_all)]
     async fn process_acked_segment(&mut self, acknowledgment_number: u32) {
         let send = self.send.as_mut().unwrap();
-        info!("Locking queue");
         let mut retransmission_queue_guard = self.retransmission_queue.as_ref().lock().await;
         let retransmission_queue = retransmission_queue_guard.borrow_mut();
 
@@ -160,7 +167,11 @@ impl AckReceivedState {
             "Popping segment from retransmission queue"
         );
         if segment.retransmissions == 0 {
-            send.update_rto(segment.sent.elapsed().as_micros() as f64);
+            let elapsed = segment.sent.elapsed().as_micros() as f64;
+            self.rtt.set(elapsed);
+            send.update_rto(elapsed);
+            self.gauge.set(send.rto());
+            info!(rtt = elapsed, rto = send.rto(), "metrics");
         }
         retransmission_queue.pop();
         for _ in 0..3 {

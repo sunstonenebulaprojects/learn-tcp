@@ -3,7 +3,9 @@ mod receiver;
 mod server;
 
 use clap::{Args, Parser, Subcommand};
+use metrics_exporter_prometheus::PrometheusBuilder;
 use state_machine::{AsyncIFace, AsyncTun, IpAddrPort, Quad};
+use std::net::{Ipv4Addr, SocketAddrV4};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -38,6 +40,12 @@ fn main() {
     let rt = Runtime::new().unwrap();
 
     rt.block_on(async move {
+        let socket = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9091);
+        PrometheusBuilder::new()
+            .with_http_listener(socket)
+            .install()
+            .expect("Failed to install scrape endpoint for Prometheus");
+
         let nic: Arc<dyn AsyncTun + Sync + Send> = Arc::new(
             AsyncIFace::new(
                 tun_tap::Iface::new("tun0", tun_tap::Mode::Tun)
